@@ -47,7 +47,7 @@ var allowedOrigins = new List<string>
     "http://localhost:5174",
     "http://localhost:5175",
     "http://localhost:3000",
-    "https://devshelf-final.vercel.app"
+    "https://khausar-devshelf.vercel.app"
 };
 var extraOrigins = builder.Configuration["Cors:AllowedOrigins"];
 if (!string.IsNullOrWhiteSpace(extraOrigins))
