@@ -5,13 +5,9 @@ using server.Data;
 using server.Services;
 using Scalar.AspNetCore;
 
-
-
 var builder = WebApplication.CreateBuilder(args);
 
-
-
-//Add Ef core plus SQLite
+// Add EF Core plus SQLite
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=devshelf.db";
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(connectionString));
@@ -19,7 +15,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<AuthService>();
 
-//Read JWT configuration 
+// Read JWT configuration
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
@@ -43,41 +39,53 @@ builder.Services.AddAuthentication("Bearer")
             ClockSkew = TimeSpan.Zero
         };
     });
-// Add CORS to allow frontend requests
+
+// CORS: local dev + deployed frontend (extra origins can be added via Cors__AllowedOrigins, comma-separated)
+var allowedOrigins = new List<string>
+{
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:3000",
+    "https://devshelf-final.vercel.app"
+};
+var extraOrigins = builder.Configuration["Cors:AllowedOrigins"];
+if (!string.IsNullOrWhiteSpace(extraOrigins))
+{
+    allowedOrigins.AddRange(extraOrigins.Split(',',
+        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
-                  "http://localhost:5173",
-                  "http://localhost:5174",
-                  "http://localhost:5175",
-                  "http://localhost:3000"
-              )
+        policy.WithOrigins(allowedOrigins.ToArray())
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
 });
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Apply pending migrations so the deployed database has its tables
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
 
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
+// UseHttpsRedirection removed: Render terminates HTTPS before the request reaches the container
 
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
@@ -85,4 +93,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
